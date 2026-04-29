@@ -35,7 +35,7 @@
 
 ## 🌐 Lien GitHub Pages
 
-👉 [Voir le rendu final en ligne](https://aminrafrafi27-a11y.github.io/Projet_labyrinth/)
+👉 [Voir le rendu final en ligne](https://aminrafrafi27-a11y.github.io/Rafrafi_Mohamed_Amine_Labyrinth/)
 
 ---
 
@@ -77,5 +77,5 @@ Durant ce projet, nous avons découvert et appris plusieurs concepts nouveaux :
 
 ## 👤 Auteur
 
-- **aminrafrafi27-a11y**
+- **Mohamed Amine Rafrafi**
 - Projet réalisé dans le cadre d'un cours de développement web
