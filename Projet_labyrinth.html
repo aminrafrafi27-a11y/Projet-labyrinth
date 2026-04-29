@@ -6,48 +6,81 @@
 <style>
 body {
     margin: 0;
-    background: #1a1a2e;
+    background: linear-gradient(135deg, #1e3c72, #2a5298);
     font-family: Arial, sans-serif;
     text-align: center;
     color: white;
 }
 h1 {
-    margin-top: 30px;
+    margin-top: 20px;
     font-size: 2rem;
+}
+#stats {
+    display: flex;
+    justify-content: center;
+    gap: 30px;
+    margin: 10px 0;
+    font-size: 1.1rem;
+}
+.stat-box {
+    background: rgba(255,255,255,0.15);
+    padding: 8px 20px;
+    border-radius: 8px;
 }
 canvas {
     background: #fff;
-    margin-top: 20px;
+    margin-top: 10px;
     display: block;
     margin-left: auto;
     margin-right: auto;
-    border: 2px solid #444;
-    border-radius: 8px;
+    border-radius: 12px;
+    box-shadow: 0 0 20px rgba(0,0,0,0.4);
+}
+.controls {
+    margin-top: 12px;
+    display: flex;
+    justify-content: center;
+    gap: 10px;
 }
 button {
-    margin-top: 15px;
-    padding: 10px 20px;
+    padding: 10px 22px;
     border: none;
-    background: #4a90e2;
+    background: #00c6ff;
     color: white;
     cursor: pointer;
     font-size: 1rem;
-    border-radius: 6px;
+    border-radius: 8px;
+    transition: background 0.2s;
 }
-button:hover { background: #2a70c2; }
-#hint { font-size: 0.85rem; color: #aaa; margin-top: 6px; }
+button:hover { background: #0072ff; }
+button.danger { background: #e74c3c; }
+button.danger:hover { background: #c0392b; }
+#msg {
+    margin-top: 10px;
+    font-size: 1.3rem;
+    font-weight: bold;
+}
+#hint { font-size: 0.8rem; color: #ccc; }
 </style>
 </head>
 <body>
 
 <h1>Projet labyrinth</h1>
-<p id="hint">Utilisez les touches ↑ ↓ ← → pour naviguer</p>
+
+<div id="stats">
+    <div class="stat-box">⏱ Temps: <span id="time">0</span>s</div>
+    <div class="stat-box">🏆 Meilleur: <span id="best">--</span></div>
+</div>
 
 <canvas id="maze" width="500" height="500"></canvas>
 
-<br>
-<button onclick="restart()">🔄 Nouveau labyrinthe</button>
+<div class="controls">
+    <button onclick="restart()">🔄 Nouveau labyrinthe</button>
+    <button class="danger" onclick="resetBest()">🗑 Reset score</button>
+</div>
+
 <p id="msg"></p>
+<p id="hint">Touches ↑ ↓ ← → pour naviguer</p>
 
 <script>
 const canvas = document.getElementById("maze");
@@ -57,10 +90,12 @@ const cols = 15;
 const rows = 15;
 const cellSize = canvas.width / cols;
 
-let grid = [];
-let stack = [];
+let grid = [], stack = [];
 let player = { x: 0, y: 0 };
 let exitPos = { x: cols - 1, y: rows - 1 };
+let time = 0;
+let timer = null;
+let gameOver = false;
 
 class Cell {
     constructor(x, y) {
@@ -73,9 +108,8 @@ class Cell {
     draw() {
         const px = this.x * cellSize;
         const py = this.y * cellSize;
-        ctx.strokeStyle = "#333";
+        ctx.strokeStyle = "#222";
         ctx.lineWidth = 2;
-
         if (this.walls[0]) { ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px + cellSize, py); ctx.stroke(); }
         if (this.walls[1]) { ctx.beginPath(); ctx.moveTo(px + cellSize, py); ctx.lineTo(px + cellSize, py + cellSize); ctx.stroke(); }
         if (this.walls[2]) { ctx.beginPath(); ctx.moveTo(px + cellSize, py + cellSize); ctx.lineTo(px, py + cellSize); ctx.stroke(); }
@@ -96,9 +130,8 @@ function generateMaze() {
     let current = grid[0][0];
     current.visited = true;
     stack = [];
-
     while (true) {
-        let next = getUnvisitedNeighbor(current);
+        let next = getNeighbor(current);
         if (next) {
             next.visited = true;
             stack.push(current);
@@ -110,7 +143,7 @@ function generateMaze() {
     }
 }
 
-function getUnvisitedNeighbor(cell) {
+function getNeighbor(cell) {
     let neighbors = [];
     let { x, y } = cell;
     if (y > 0 && !grid[y-1][x].visited) neighbors.push(grid[y-1][x]);
@@ -122,8 +155,7 @@ function getUnvisitedNeighbor(cell) {
 }
 
 function removeWalls(a, b) {
-    let dx = a.x - b.x;
-    let dy = a.y - b.y;
+    let dx = a.x - b.x, dy = a.y - b.y;
     if (dx === 1)  { a.walls[3] = false; b.walls[1] = false; }
     if (dx === -1) { a.walls[1] = false; b.walls[3] = false; }
     if (dy === 1)  { a.walls[0] = false; b.walls[2] = false; }
@@ -132,42 +164,34 @@ function removeWalls(a, b) {
 
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Grille
     grid.forEach(row => row.forEach(cell => cell.draw()));
-
-    // Case de départ (verte)
-    ctx.fillStyle = "rgba(0, 200, 100, 0.3)";
-    ctx.fillRect(0, 0, cellSize, cellSize);
 
     // Sortie
     ctx.fillStyle = "#27ae60";
-    ctx.fillRect(exitPos.x * cellSize + 6, exitPos.y * cellSize + 6, cellSize - 12, cellSize - 12);
+    ctx.fillRect(exitPos.x * cellSize + 4, exitPos.y * cellSize + 4, cellSize - 8, cellSize - 8);
     ctx.fillStyle = "white";
-    ctx.font = "bold 14px Arial";
+    ctx.font = "16px Arial";
     ctx.textAlign = "center";
-    ctx.fillText("🏁", exitPos.x * cellSize + cellSize / 2, exitPos.y * cellSize + cellSize / 2 + 5);
+    ctx.textBaseline = "middle";
+    ctx.fillText("🏁", exitPos.x * cellSize + cellSize / 2, exitPos.y * cellSize + cellSize / 2);
 
-    // Joueur (cercle rouge)
+    // Joueur
     ctx.fillStyle = "#e74c3c";
     ctx.beginPath();
-    ctx.arc(
-        player.x * cellSize + cellSize / 2,
-        player.y * cellSize + cellSize / 2,
-        cellSize / 3, 0, Math.PI * 2
-    );
+    ctx.arc(player.x * cellSize + cellSize/2, player.y * cellSize + cellSize/2, cellSize/3, 0, Math.PI*2);
     ctx.fill();
+    ctx.fillStyle = "white";
+    ctx.font = "12px Arial";
+    ctx.fillText("●", player.x * cellSize + cellSize/2, player.y * cellSize + cellSize/2);
 }
 
-// Déplacement avec vérification des murs
 function move(dx, dy) {
+    if (gameOver) return;
     let cell = grid[player.y][player.x];
-
     if (dx === 0 && dy === -1 && !cell.walls[0]) player.y--;
     if (dx === 1 && dy === 0  && !cell.walls[1]) player.x++;
     if (dx === 0 && dy === 1  && !cell.walls[2]) player.y++;
     if (dx === -1 && dy === 0 && !cell.walls[3]) player.x--;
-
     draw();
     checkWin();
 }
@@ -181,19 +205,53 @@ document.addEventListener("keydown", e => {
 
 function checkWin() {
     if (player.x === exitPos.x && player.y === exitPos.y) {
-        document.getElementById("msg").textContent = "🎉 Bravo ! Tu as trouvé la sortie !";
+        gameOver = true;
+        clearInterval(timer);
+
+        // Sauvegarde du meilleur score dans localStorage
+        let best = parseInt(localStorage.getItem("mazeBest"));
+        if (!best || time < best) {
+            localStorage.setItem("mazeBest", time);
+            document.getElementById("best").textContent = time + "s";
+            document.getElementById("msg").innerHTML = `🎉 GAGNÉ en ${time}s ! 🏆 Nouveau record !`;
+        } else {
+            document.getElementById("msg").innerHTML = `🎉 GAGNÉ en ${time}s !`;
+        }
     }
 }
 
+function startTimer() {
+    time = 0;
+    document.getElementById("time").textContent = "0";
+    clearInterval(timer);
+    timer = setInterval(() => {
+        time++;
+        document.getElementById("time").textContent = time;
+    }, 1000);
+}
+
+function loadBest() {
+    let best = localStorage.getItem("mazeBest");
+    document.getElementById("best").textContent = best ? best + "s" : "--";
+}
+
+function resetBest() {
+    localStorage.removeItem("mazeBest");
+    document.getElementById("best").textContent = "--";
+}
+
 function restart() {
+    gameOver = false;
     init();
     generateMaze();
     player = { x: 0, y: 0 };
     exitPos = { x: cols - 1, y: rows - 1 };
     document.getElementById("msg").textContent = "";
+    startTimer();
     draw();
 }
 
+loadBest();
 restart();
 </script>
 </body>
