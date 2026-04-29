@@ -3,84 +3,62 @@
 <head>
 <meta charset="UTF-8">
 <title>Projet labyrinth</title>
+
 <style>
 body {
     margin: 0;
-    background: linear-gradient(135deg, #1e3c72, #2a5298);
-    font-family: Arial, sans-serif;
+    background: linear-gradient(135deg,#1e3c72,#2a5298);
+    font-family: Arial;
     text-align: center;
     color: white;
 }
+
 h1 {
     margin-top: 20px;
-    font-size: 2rem;
 }
-#stats {
-    display: flex;
-    justify-content: center;
-    gap: 30px;
-    margin: 10px 0;
-    font-size: 1.1rem;
-}
-.stat-box {
-    background: rgba(255,255,255,0.15);
-    padding: 8px 20px;
-    border-radius: 8px;
-}
+
 canvas {
     background: #fff;
-    margin-top: 10px;
-    display: block;
-    margin-left: auto;
-    margin-right: auto;
+    margin-top: 20px;
     border-radius: 12px;
-    box-shadow: 0 0 20px rgba(0,0,0,0.4);
+    box-shadow: 0 0 20px rgba(0,0,0,0.3);
 }
-.controls {
-    margin-top: 12px;
-    display: flex;
-    justify-content: center;
-    gap: 10px;
-}
+
 button {
-    padding: 10px 22px;
+    margin-top: 15px;
+    padding: 10px 20px;
+    border-radius: 10px;
     border: none;
     background: #00c6ff;
     color: white;
     cursor: pointer;
-    font-size: 1rem;
-    border-radius: 8px;
-    transition: background 0.2s;
 }
-button:hover { background: #0072ff; }
-button.danger { background: #e74c3c; }
-button.danger:hover { background: #c0392b; }
-#msg {
+
+button:hover {
+    background: #0072ff;
+}
+
+#info {
     margin-top: 10px;
-    font-size: 1.3rem;
-    font-weight: bold;
 }
-#hint { font-size: 0.8rem; color: #ccc; }
 </style>
 </head>
+
 <body>
 
 <h1>Projet labyrinth</h1>
 
-<div id="stats">
-    <div class="stat-box">⏱ Temps: <span id="time">0</span>s</div>
-    <div class="stat-box">🏆 Meilleur: <span id="best">--</span></div>
+<div id="info">
+⏱ Temps: <span id="time">0</span>s |
+🏆 Best: <span id="best">--</span>
 </div>
 
 <canvas id="maze" width="500" height="500"></canvas>
 
-<div class="controls">
-    <button onclick="restart()">🔄 Nouveau labyrinthe</button>
-    <button class="danger" onclick="resetBest()">🗑 Reset score</button>
-</div>
+<br>
+<button onclick="restart()">🔄 Restart</button>
 
 <p id="msg"></p>
-<p id="hint">Touches ↑ ↓ ← → pour naviguer</p>
 
 <script>
 const canvas = document.getElementById("maze");
@@ -90,169 +68,202 @@ const cols = 15;
 const rows = 15;
 const cellSize = canvas.width / cols;
 
-let grid = [], stack = [];
-let player = { x: 0, y: 0 };
-let exitPos = { x: cols - 1, y: rows - 1 };
-let time = 0;
-let timer = null;
-let gameOver = false;
+let grid = [];
+let stack = [];
 
+let player, exit;
+let time = 0;
+let timer;
+
+// Cell structure
 class Cell {
-    constructor(x, y) {
+    constructor(x, y){
         this.x = x;
         this.y = y;
-        this.walls = [true, true, true, true];
+        this.walls = [true, true, true, true]; // top right bottom left
         this.visited = false;
     }
 
-    draw() {
-        const px = this.x * cellSize;
-        const py = this.y * cellSize;
-        ctx.strokeStyle = "#222";
+    draw(){
+        const x = this.x * cellSize;
+        const y = this.y * cellSize;
+
+        ctx.strokeStyle = "#000";
         ctx.lineWidth = 2;
-        if (this.walls[0]) { ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px + cellSize, py); ctx.stroke(); }
-        if (this.walls[1]) { ctx.beginPath(); ctx.moveTo(px + cellSize, py); ctx.lineTo(px + cellSize, py + cellSize); ctx.stroke(); }
-        if (this.walls[2]) { ctx.beginPath(); ctx.moveTo(px + cellSize, py + cellSize); ctx.lineTo(px, py + cellSize); ctx.stroke(); }
-        if (this.walls[3]) { ctx.beginPath(); ctx.moveTo(px, py + cellSize); ctx.lineTo(px, py); ctx.stroke(); }
+
+        if(this.walls[0]) drawLine(x, y, x+cellSize, y);
+        if(this.walls[1]) drawLine(x+cellSize, y, x+cellSize, y+cellSize);
+        if(this.walls[2]) drawLine(x+cellSize, y+cellSize, x, y+cellSize);
+        if(this.walls[3]) drawLine(x, y+cellSize, x, y);
     }
 }
 
-function init() {
+function drawLine(x1,y1,x2,y2){
+    ctx.beginPath();
+    ctx.moveTo(x1,y1);
+    ctx.lineTo(x2,y2);
+    ctx.stroke();
+}
+
+// Initialize grid
+function init(){
     grid = [];
-    for (let y = 0; y < rows; y++) {
-        let row = [];
-        for (let x = 0; x < cols; x++) row.push(new Cell(x, y));
+    for(let y=0;y<rows;y++){
+        let row=[];
+        for(let x=0;x<cols;x++){
+            row.push(new Cell(x,y));
+        }
         grid.push(row);
     }
 }
 
-function generateMaze() {
+// DFS generation
+function generateMaze(){
     let current = grid[0][0];
     current.visited = true;
+
     stack = [];
-    while (true) {
+
+    while(true){
         let next = getNeighbor(current);
-        if (next) {
+
+        if(next){
             next.visited = true;
             stack.push(current);
             removeWalls(current, next);
             current = next;
-        } else if (stack.length > 0) {
+        } else if(stack.length > 0){
             current = stack.pop();
         } else break;
     }
 }
 
-function getNeighbor(cell) {
+function getNeighbor(cell){
     let neighbors = [];
-    let { x, y } = cell;
-    if (y > 0 && !grid[y-1][x].visited) neighbors.push(grid[y-1][x]);
-    if (x < cols-1 && !grid[y][x+1].visited) neighbors.push(grid[y][x+1]);
-    if (y < rows-1 && !grid[y+1][x].visited) neighbors.push(grid[y+1][x]);
-    if (x > 0 && !grid[y][x-1].visited) neighbors.push(grid[y][x-1]);
-    if (neighbors.length === 0) return undefined;
-    return neighbors[Math.floor(Math.random() * neighbors.length)];
+
+    let {x,y} = cell;
+
+    if(y>0 && !grid[y-1][x].visited) neighbors.push(grid[y-1][x]);
+    if(x<cols-1 && !grid[y][x+1].visited) neighbors.push(grid[y][x+1]);
+    if(y<rows-1 && !grid[y+1][x].visited) neighbors.push(grid[y+1][x]);
+    if(x>0 && !grid[y][x-1].visited) neighbors.push(grid[y][x-1]);
+
+    if(neighbors.length===0) return undefined;
+
+    return neighbors[Math.floor(Math.random()*neighbors.length)];
 }
 
-function removeWalls(a, b) {
-    let dx = a.x - b.x, dy = a.y - b.y;
-    if (dx === 1)  { a.walls[3] = false; b.walls[1] = false; }
-    if (dx === -1) { a.walls[1] = false; b.walls[3] = false; }
-    if (dy === 1)  { a.walls[0] = false; b.walls[2] = false; }
-    if (dy === -1) { a.walls[2] = false; b.walls[0] = false; }
+function removeWalls(a,b){
+    let dx = a.x - b.x;
+    let dy = a.y - b.y;
+
+    if(dx===1){
+        a.walls[3]=false;
+        b.walls[1]=false;
+    }
+    else if(dx===-1){
+        a.walls[1]=false;
+        b.walls[3]=false;
+    }
+
+    if(dy===1){
+        a.walls[0]=false;
+        b.walls[2]=false;
+    }
+    else if(dy===-1){
+        a.walls[2]=false;
+        b.walls[0]=false;
+    }
 }
 
-function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    grid.forEach(row => row.forEach(cell => cell.draw()));
+// Draw everything
+function draw(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
 
-    // Sortie
-    ctx.fillStyle = "#27ae60";
-    ctx.fillRect(exitPos.x * cellSize + 4, exitPos.y * cellSize + 4, cellSize - 8, cellSize - 8);
-    ctx.fillStyle = "white";
-    ctx.font = "16px Arial";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText("🏁", exitPos.x * cellSize + cellSize / 2, exitPos.y * cellSize + cellSize / 2);
+    grid.forEach(row=>{
+        row.forEach(cell=>{
+            cell.draw();
+        });
+    });
 
-    // Joueur
-    ctx.fillStyle = "#e74c3c";
+    // exit
+    ctx.fillStyle="green";
+    ctx.fillRect(exit.x*cellSize+10, exit.y*cellSize+10, cellSize-20, cellSize-20);
+
+    // player
+    ctx.fillStyle="red";
     ctx.beginPath();
-    ctx.arc(player.x * cellSize + cellSize/2, player.y * cellSize + cellSize/2, cellSize/3, 0, Math.PI*2);
+    ctx.arc(
+        player.x*cellSize + cellSize/2,
+        player.y*cellSize + cellSize/2,
+        cellSize/4,
+        0, Math.PI*2
+    );
     ctx.fill();
-    ctx.fillStyle = "white";
-    ctx.font = "12px Arial";
-    ctx.fillText("●", player.x * cellSize + cellSize/2, player.y * cellSize + cellSize/2);
 }
 
-function move(dx, dy) {
-    if (gameOver) return;
+// Movement logic
+function move(dx,dy){
     let cell = grid[player.y][player.x];
-    if (dx === 0 && dy === -1 && !cell.walls[0]) player.y--;
-    if (dx === 1 && dy === 0  && !cell.walls[1]) player.x++;
-    if (dx === 0 && dy === 1  && !cell.walls[2]) player.y++;
-    if (dx === -1 && dy === 0 && !cell.walls[3]) player.x--;
+
+    if(dx===0 && dy===-1 && !cell.walls[0]) player.y--;
+    if(dx===1 && dy===0 && !cell.walls[1]) player.x++;
+    if(dx===0 && dy===1 && !cell.walls[2]) player.y++;
+    if(dx===-1 && dy===0 && !cell.walls[3]) player.x--;
+
     draw();
     checkWin();
 }
 
-document.addEventListener("keydown", e => {
-    if (e.key === "ArrowUp")    { e.preventDefault(); move(0, -1); }
-    if (e.key === "ArrowDown")  { e.preventDefault(); move(0, 1); }
-    if (e.key === "ArrowLeft")  { e.preventDefault(); move(-1, 0); }
-    if (e.key === "ArrowRight") { e.preventDefault(); move(1, 0); }
+document.addEventListener("keydown", e=>{
+    if(e.key==="ArrowUp") move(0,-1);
+    if(e.key==="ArrowDown") move(0,1);
+    if(e.key==="ArrowLeft") move(-1,0);
+    if(e.key==="ArrowRight") move(1,0);
 });
 
-function checkWin() {
-    if (player.x === exitPos.x && player.y === exitPos.y) {
-        gameOver = true;
+function checkWin(){
+    if(player.x===exit.x && player.y===exit.y){
         clearInterval(timer);
+        document.getElementById("msg").innerHTML="🎉 GAGNÉ !";
 
-        // Sauvegarde du meilleur score dans localStorage
-        let best = parseInt(localStorage.getItem("mazeBest"));
-        if (!best || time < best) {
-            localStorage.setItem("mazeBest", time);
-            document.getElementById("best").textContent = time + "s";
-            document.getElementById("msg").innerHTML = `🎉 GAGNÉ en ${time}s ! 🏆 Nouveau record !`;
-        } else {
-            document.getElementById("msg").innerHTML = `🎉 GAGNÉ en ${time}s !`;
+        let best=localStorage.getItem("best");
+        if(!best || time<best){
+            localStorage.setItem("best",time);
+            document.getElementById("best").textContent=time+"s";
         }
     }
 }
 
-function startTimer() {
-    time = 0;
-    document.getElementById("time").textContent = "0";
-    clearInterval(timer);
-    timer = setInterval(() => {
+function startTimer(){
+    timer=setInterval(()=>{
         time++;
-        document.getElementById("time").textContent = time;
-    }, 1000);
+        document.getElementById("time").textContent=time;
+    },1000);
 }
 
-function loadBest() {
-    let best = localStorage.getItem("mazeBest");
-    document.getElementById("best").textContent = best ? best + "s" : "--";
-}
-
-function resetBest() {
-    localStorage.removeItem("mazeBest");
-    document.getElementById("best").textContent = "--";
-}
-
-function restart() {
-    gameOver = false;
+function restart(){
     init();
     generateMaze();
-    player = { x: 0, y: 0 };
-    exitPos = { x: cols - 1, y: rows - 1 };
-    document.getElementById("msg").textContent = "";
+
+    player={x:0,y:0};
+    exit={x:cols-1,y:rows-1};
+
+    time=0;
+    document.getElementById("msg").innerHTML="";
+    clearInterval(timer);
     startTimer();
     draw();
+}
+
+function loadBest(){
+    let best=localStorage.getItem("best");
+    if(best) document.getElementById("best").textContent=best+"s";
 }
 
 loadBest();
 restart();
 </script>
+
 </body>
 </html>
