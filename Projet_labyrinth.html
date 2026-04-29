@@ -22,6 +22,7 @@ canvas {
     margin-left: auto;
     margin-right: auto;
     border: 2px solid #444;
+    border-radius: 8px;
 }
 button {
     margin-top: 15px;
@@ -31,12 +32,16 @@ button {
     color: white;
     cursor: pointer;
     font-size: 1rem;
+    border-radius: 6px;
 }
+button:hover { background: #2a70c2; }
+#hint { font-size: 0.85rem; color: #aaa; margin-top: 6px; }
 </style>
 </head>
 <body>
 
 <h1>Projet labyrinth</h1>
+<p id="hint">Utilisez les touches ↑ ↓ ← → pour naviguer</p>
 
 <canvas id="maze" width="500" height="500"></canvas>
 
@@ -54,19 +59,21 @@ const cellSize = canvas.width / cols;
 
 let grid = [];
 let stack = [];
+let player = { x: 0, y: 0 };
+let exitPos = { x: cols - 1, y: rows - 1 };
 
 class Cell {
     constructor(x, y) {
         this.x = x;
         this.y = y;
-        this.walls = [true, true, true, true]; // top, right, bottom, left
+        this.walls = [true, true, true, true];
         this.visited = false;
     }
 
     draw() {
         const px = this.x * cellSize;
         const py = this.y * cellSize;
-        ctx.strokeStyle = "#222";
+        ctx.strokeStyle = "#333";
         ctx.lineWidth = 2;
 
         if (this.walls[0]) { ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px + cellSize, py); ctx.stroke(); }
@@ -80,14 +87,11 @@ function init() {
     grid = [];
     for (let y = 0; y < rows; y++) {
         let row = [];
-        for (let x = 0; x < cols; x++) {
-            row.push(new Cell(x, y));
-        }
+        for (let x = 0; x < cols; x++) row.push(new Cell(x, y));
         grid.push(row);
     }
 }
 
-// Algorithme DFS (Depth-First Search) pour générer le labyrinthe
 function generateMaze() {
     let current = grid[0][0];
     current.visited = true;
@@ -102,21 +106,17 @@ function generateMaze() {
             current = next;
         } else if (stack.length > 0) {
             current = stack.pop();
-        } else {
-            break; // Labyrinthe complet
-        }
+        } else break;
     }
 }
 
 function getUnvisitedNeighbor(cell) {
     let neighbors = [];
     let { x, y } = cell;
-
-    if (y > 0 && !grid[y-1][x].visited) neighbors.push(grid[y-1][x]);       // haut
-    if (x < cols-1 && !grid[y][x+1].visited) neighbors.push(grid[y][x+1]);  // droite
-    if (y < rows-1 && !grid[y+1][x].visited) neighbors.push(grid[y+1][x]);  // bas
-    if (x > 0 && !grid[y][x-1].visited) neighbors.push(grid[y][x-1]);       // gauche
-
+    if (y > 0 && !grid[y-1][x].visited) neighbors.push(grid[y-1][x]);
+    if (x < cols-1 && !grid[y][x+1].visited) neighbors.push(grid[y][x+1]);
+    if (y < rows-1 && !grid[y+1][x].visited) neighbors.push(grid[y+1][x]);
+    if (x > 0 && !grid[y][x-1].visited) neighbors.push(grid[y][x-1]);
     if (neighbors.length === 0) return undefined;
     return neighbors[Math.floor(Math.random() * neighbors.length)];
 }
@@ -124,7 +124,6 @@ function getUnvisitedNeighbor(cell) {
 function removeWalls(a, b) {
     let dx = a.x - b.x;
     let dy = a.y - b.y;
-
     if (dx === 1)  { a.walls[3] = false; b.walls[1] = false; }
     if (dx === -1) { a.walls[1] = false; b.walls[3] = false; }
     if (dy === 1)  { a.walls[0] = false; b.walls[2] = false; }
@@ -133,18 +132,66 @@ function removeWalls(a, b) {
 
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Grille
     grid.forEach(row => row.forEach(cell => cell.draw()));
 
-    // Marqueur de sortie (coin bas-droite)
-    ctx.fillStyle = "green";
-    ctx.fillRect((cols-1)*cellSize + 5, (rows-1)*cellSize + 5, cellSize-10, cellSize-10);
+    // Case de départ (verte)
+    ctx.fillStyle = "rgba(0, 200, 100, 0.3)";
+    ctx.fillRect(0, 0, cellSize, cellSize);
+
+    // Sortie
+    ctx.fillStyle = "#27ae60";
+    ctx.fillRect(exitPos.x * cellSize + 6, exitPos.y * cellSize + 6, cellSize - 12, cellSize - 12);
+    ctx.fillStyle = "white";
+    ctx.font = "bold 14px Arial";
+    ctx.textAlign = "center";
+    ctx.fillText("🏁", exitPos.x * cellSize + cellSize / 2, exitPos.y * cellSize + cellSize / 2 + 5);
+
+    // Joueur (cercle rouge)
+    ctx.fillStyle = "#e74c3c";
+    ctx.beginPath();
+    ctx.arc(
+        player.x * cellSize + cellSize / 2,
+        player.y * cellSize + cellSize / 2,
+        cellSize / 3, 0, Math.PI * 2
+    );
+    ctx.fill();
+}
+
+// Déplacement avec vérification des murs
+function move(dx, dy) {
+    let cell = grid[player.y][player.x];
+
+    if (dx === 0 && dy === -1 && !cell.walls[0]) player.y--;
+    if (dx === 1 && dy === 0  && !cell.walls[1]) player.x++;
+    if (dx === 0 && dy === 1  && !cell.walls[2]) player.y++;
+    if (dx === -1 && dy === 0 && !cell.walls[3]) player.x--;
+
+    draw();
+    checkWin();
+}
+
+document.addEventListener("keydown", e => {
+    if (e.key === "ArrowUp")    { e.preventDefault(); move(0, -1); }
+    if (e.key === "ArrowDown")  { e.preventDefault(); move(0, 1); }
+    if (e.key === "ArrowLeft")  { e.preventDefault(); move(-1, 0); }
+    if (e.key === "ArrowRight") { e.preventDefault(); move(1, 0); }
+});
+
+function checkWin() {
+    if (player.x === exitPos.x && player.y === exitPos.y) {
+        document.getElementById("msg").textContent = "🎉 Bravo ! Tu as trouvé la sortie !";
+    }
 }
 
 function restart() {
     init();
     generateMaze();
-    draw();
+    player = { x: 0, y: 0 };
+    exitPos = { x: cols - 1, y: rows - 1 };
     document.getElementById("msg").textContent = "";
+    draw();
 }
 
 restart();
