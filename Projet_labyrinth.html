@@ -2,8 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Projet labyrinth
-</title>
+<title>Projet labyrinth</title>
 <style>
 body {
     margin: 0;
@@ -37,13 +36,12 @@ button {
 </head>
 <body>
 
-<h1>Projet labyrinth
-</h1>
+<h1>Projet labyrinth</h1>
 
 <canvas id="maze" width="500" height="500"></canvas>
 
 <br>
-<button onclick="restart()">Restart</button>
+<button onclick="restart()">🔄 Nouveau labyrinthe</button>
 <p id="msg"></p>
 
 <script>
@@ -55,8 +53,8 @@ const rows = 15;
 const cellSize = canvas.width / cols;
 
 let grid = [];
+let stack = [];
 
-// Cellule basique
 class Cell {
     constructor(x, y) {
         this.x = x;
@@ -68,7 +66,7 @@ class Cell {
     draw() {
         const px = this.x * cellSize;
         const py = this.y * cellSize;
-        ctx.strokeStyle = "#000";
+        ctx.strokeStyle = "#222";
         ctx.lineWidth = 2;
 
         if (this.walls[0]) { ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px + cellSize, py); ctx.stroke(); }
@@ -89,13 +87,62 @@ function init() {
     }
 }
 
+// Algorithme DFS (Depth-First Search) pour générer le labyrinthe
+function generateMaze() {
+    let current = grid[0][0];
+    current.visited = true;
+    stack = [];
+
+    while (true) {
+        let next = getUnvisitedNeighbor(current);
+        if (next) {
+            next.visited = true;
+            stack.push(current);
+            removeWalls(current, next);
+            current = next;
+        } else if (stack.length > 0) {
+            current = stack.pop();
+        } else {
+            break; // Labyrinthe complet
+        }
+    }
+}
+
+function getUnvisitedNeighbor(cell) {
+    let neighbors = [];
+    let { x, y } = cell;
+
+    if (y > 0 && !grid[y-1][x].visited) neighbors.push(grid[y-1][x]);       // haut
+    if (x < cols-1 && !grid[y][x+1].visited) neighbors.push(grid[y][x+1]);  // droite
+    if (y < rows-1 && !grid[y+1][x].visited) neighbors.push(grid[y+1][x]);  // bas
+    if (x > 0 && !grid[y][x-1].visited) neighbors.push(grid[y][x-1]);       // gauche
+
+    if (neighbors.length === 0) return undefined;
+    return neighbors[Math.floor(Math.random() * neighbors.length)];
+}
+
+function removeWalls(a, b) {
+    let dx = a.x - b.x;
+    let dy = a.y - b.y;
+
+    if (dx === 1)  { a.walls[3] = false; b.walls[1] = false; }
+    if (dx === -1) { a.walls[1] = false; b.walls[3] = false; }
+    if (dy === 1)  { a.walls[0] = false; b.walls[2] = false; }
+    if (dy === -1) { a.walls[2] = false; b.walls[0] = false; }
+}
+
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     grid.forEach(row => row.forEach(cell => cell.draw()));
+
+    // Marqueur de sortie (coin bas-droite)
+    ctx.fillStyle = "green";
+    ctx.fillRect((cols-1)*cellSize + 5, (rows-1)*cellSize + 5, cellSize-10, cellSize-10);
 }
 
 function restart() {
     init();
+    generateMaze();
     draw();
     document.getElementById("msg").textContent = "";
 }
